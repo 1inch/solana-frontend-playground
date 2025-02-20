@@ -1,0 +1,22 @@
+<!-- Modal Overlay: clicking outside closes the modal -->
+<div class="modal-overlay" (click)="close()"></div>
+
+<!-- Modal Container -->
+<div class="modal-container">
+    <div class="modal-header">
+        <h2>Connect via WalletConnect</h2>
+        <button class="close-button" (click)="close()">X</button>
+    </div>
+    <div class="modal-body">
+        <p>
+            Scan the QR code below with your WalletConnect‑compatible wallet (Solana).
+        </p>
+        <!-- Render QR code if the URI is available; otherwise, show a waiting message -->
+        <div *ngIf="connectionUri; else waiting">
+            <qrcode [qrdata]="connectionUri" [width]="250" [errorCorrectionLevel]="'M'"></qrcode>
+        </div>
+        <ng-template #waiting>
+            <p>Waiting for connection URI...</p>
+        </ng-template>
+    </div>
+</div>

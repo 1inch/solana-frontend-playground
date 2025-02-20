@@ -1,0 +1,19 @@
+<!-- Modal Overlay -->
+<div class="modal-overlay" (click)="close()"></div>
+
+<!-- Modal Container -->
+<div class="modal-container">
+    <div class="modal-header">
+        <h2>Connect Wallet</h2>
+        <button class="close-button" (click)="close()">X</button>
+    </div>
+    <div class="modal-body">
+        <p>Please click a button below to connect your wallet.</p>
+
+        <!-- Phantom Wallet Connect Button -->
+        <app-connect-wallet-button (walletConnected)="onPhantomWalletConnected()"></app-connect-wallet-button>
+
+        <!-- WalletConnect Button -->
+        <app-wallet-connect-button (openWalletConnectModal)="onWalletConnectPressed()"></app-wallet-connect-button>
+    </div>
+</div>

@@ -1,0 +1,61 @@
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
+#wallet-info {
+  margin-top: 20px;
+  background: #f0f0f0;
+  padding: 10px;
+  border: 1px solid #ddd;
+  max-width: 600px;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 15px;
+  width: 180px;
+}
+
+.transaction-form{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.usdc-transaction-form{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.wallet-controls{
+  display: flex;
+  justify-content: right;
+}
+
+.wallet-table {
+  width: 70%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.wallet-table th,
+.wallet-table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.wallet-table th {
+  background-color: #f4f4f4;
+  font-weight: bold;
+}
+
+input {
+  margin: 5px 0;
+}
+
+

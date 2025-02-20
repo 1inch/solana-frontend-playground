@@ -1,0 +1,107 @@
+<div class="container">
+    <h1>Solana Test Client</h1>
+    <div *ngIf="(walletService.$walletAddress|async) as walletAddress">
+        <div>Connected Wallet: {{walletAddress?.toString()}}</div>
+    </div>
+    <div class="wallet-controls">
+        <button (click)="disconnectWallet()">Disconnect Wallet</button>
+        <button (click)="isModalOpen = true">Open Connect Wallet Modal</button>
+    </div>
+
+    <app-wallet-modal
+            *ngIf="isModalOpen"
+            (closeModal)="isModalOpen = false"
+            (walletConnected)="handleWalletConnected()"
+            (openWalletConnect)="openWalletConnectModal()">
+    </app-wallet-modal>
+
+    <app-wallet-connect-modal
+            *ngIf="isWalletConnectModalOpen"
+            (closeModal)="isWalletConnectModalOpen = false">
+    </app-wallet-connect-modal>
+
+    <div class="wallet-info">
+        <h2>Wallet Info</h2>
+        <table class="wallet-table" *ngIf="walletBalance || tokenBalances?.length">
+            <thead>
+            <tr>
+                <th>Asset</th>
+                <th>Symbol</th>
+                <th>Balance</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- Display SOL Balance if available -->
+            <tr *ngIf="walletBalance">
+                <td>Solana</td>
+                <td>SOL</td>
+                <td>{{ walletBalance }} SOL</td>
+                <td>{{ solPrice | number:'1.2-8' }}</td>
+            </tr>
+            <!-- Display each token balance -->
+            <tr *ngFor="let token of tokenBalances">
+                <td>{{ token.name }}</td>
+                <td>{{ token.symbol }}</td>
+                <td>{{ token.balance }}</td>
+                <td>{{ token.currentPrice | number:'1.2-8' }}</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <!-- Message when no balances are available -->
+        <p *ngIf="!walletBalance && (!tokenBalances || tokenBalances.length === 0)">
+            No balances available.
+        </p>
+    </div>
+
+    <hr/>
+
+    <!-- Native token transaction Form -->
+    <div id="transaction-form" class="transaction-form">
+        <h2>Send SOL</h2>
+        <div class="form-group">
+            <label for="recipient-address">Recipient Address:</label>
+            <input
+                    id="recipient-address"
+                    type="text"
+                    [(ngModel)]="recipientAddress"
+                    placeholder="Enter recipient address"
+            />
+        </div>
+        <div class="form-group">
+            <label for="send-amount">Amount (SOL):</label>
+            <input [(ngModel)]="sendAmount"
+                   id="send-amount"
+                   type="number"
+                   placeholder="Enter amount in SOL"
+                   step="0.0001"
+            />
+        </div>
+        <button (click)="sendSOLANA()">Send Transaction</button>
+    </div>
+
+    <hr/>
+
+    <!-- USDC Transaction Form -->
+    <div id="usdc-transaction-form" class="usdc-transaction-form">
+        <h2>Send USDC</h2>
+        <div class="form-group">
+            <label for="token-recipient">Recipient Address:</label>
+            <input [(ngModel)]="tokenRecipient"
+                   id="token-recipient"
+                   type="text"
+                   placeholder="Enter recipient address"
+            />
+        </div>
+        <div class="form-group">
+            <label for="token-amount">Amount (USDC):</label>
+            <input [(ngModel)]="tokenAmount"
+                   id="token-amount"
+                   type="number"
+                   placeholder="Enter amount in USDC"
+                   step="0.000001"
+            />
+        </div>
+        <button (click)="sendUSDC()">Send Transaction</button>
+    </div>
+</div>
