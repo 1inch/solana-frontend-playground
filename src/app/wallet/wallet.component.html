@@ -1,7 +1,10 @@
 <div class="container">
     <h1>Solana Test Client</h1>
-    <div *ngIf="(walletService.$walletAddress|async) as walletAddress">
-        <div>Connected Wallet: {{walletAddress?.toString()}}</div>
+    <div>Connected wallets: </div>
+    <div *ngIf="walletAddresses() as addresses">
+        @for (addr of addresses; track addr) {
+            <div>{{ addr }}</div>
+        }
     </div>
     <div class="wallet-controls">
         <button (click)="disconnectWallet()">Disconnect Wallet</button>

@@ -25,7 +25,7 @@ export class WalletConnectModalComponent implements OnInit {
     async initWalletConnectV2(): Promise<void> {
         try {
             this.signClient = await SignClient.init({
-                projectId: 'WALLET_CONNECT_PROJECTID',
+                projectId: '931db51d589a2ab5bc53ac8fc5aa0376',
                 relayUrl: 'wss://relay.walletconnect.com', // https ?
                 metadata: {
                     name: 'My DApp',
@@ -38,7 +38,7 @@ export class WalletConnectModalComponent implements OnInit {
             const { uri, approval } = await this.signClient.connect({
                 requiredNamespaces: {
                     solana: {
-                        methods: ["solana_signTransaction", "solana_signMessage"],
+                        methods: ["solana_signTransaction", "solana_signMessage", 'eth_sendTransaction', 'personal_sign'],
                         chains: ["solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
                         events: ["accountsChanged"],
                     },
