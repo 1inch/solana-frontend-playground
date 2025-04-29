@@ -10,9 +10,9 @@ import { Ethers5Adapter } from '@reown/appkit-adapter-ethers5'
 import { mainnet, arbitrum } from '@reown/appkit/networks'
 import {SolanaAdapter} from "@reown/appkit-adapter-solana";
 import { solana } from '@reown/appkit/networks'
-import {isAddress} from "ethers/lib/utils";
+import {createAppKitWalletButton} from "@reown/appkit-wallet-button";
 
-const projectId = '931db51d589a2ab5bc53ac8fc5aa0376'
+const projectId = 'YOUR_PROJECT_ID'; // Replace with your actual project ID
 
 const metadata = {
     name: 'My Website',
@@ -63,7 +63,7 @@ export class SolanaWalletService {
     modal = createAppKit({
         adapters: [new Ethers5Adapter(), solanaWeb3JsAdapter],
         metadata: metadata,
-        networks: [mainnet, arbitrum, solana],
+        networks: [mainnet, solana],
         projectId,
         features: {
             allWallets: false,
@@ -75,9 +75,12 @@ export class SolanaWalletService {
             email: false,
             swaps: false,
             socials: false,
-            analytics: true // Optional - defaults to your Cloud configuration
-        }
+            analytics: false // Optional - defaults to your Cloud configuration
+        },
+        allWallets: "ONLY_MOBILE",
     })
+
+    button = createAppKitWalletButton();
 
 
 
@@ -97,14 +100,17 @@ export class SolanaWalletService {
                 const addresses = new Set<string>();
 
                 const solanaAddress = this.modal.getAddressByChainNamespace('solana');
+
                 const eip155Address = this.modal.getAddressByChainNamespace('eip155');
 
                 if (solanaAddress) {
                     addresses.add(solanaAddress);
+                    this.solanaAddress.set(solanaAddress);
                 }
 
                 if (eip155Address) {
                     addresses.add(eip155Address);
+                    this.eip155Address.set(eip155Address);
                 }
 
                 this.allAddresses.set(addresses);
@@ -134,10 +140,14 @@ export class SolanaWalletService {
 
 
     async connectWalletViaAppKit(): Promise<void> {
-        try {
-            await this.modal.open();
-        } catch (error) {
-            console.error('Error connecting wallet via AppKit:', error);
+        if (this.button.isReady()) {
+            await this.button.connect('walletConnect')
+        } else {
+            this.button.subscribeIsReady(async (isReady) => {
+                if (isReady) {
+                    await this.button.connect('walletConnect')
+                }
+            })
         }
     }
 
@@ -241,7 +251,7 @@ export class SolanaWalletService {
 
 
   async sendSOLANA(recipientAddress: string, amount: string): Promise<string> {
-      const address = this.address();
+      const address = this.solanaAddress();
     if (!address) {
       throw new Error("Wallet is not connected. Please connect your wallet first.");
     }
@@ -258,21 +268,30 @@ export class SolanaWalletService {
       throw new Error("Invalid amount.");
     }
     const lamports = parsedAmount * LAMPORTS_PER_SOL;
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: new PublicKey(this),
+    const from = new PublicKey(address);
+    const pg = SystemProgram.transfer({
+        fromPubkey: from,
         toPubkey: recipientPublicKey,
         lamports: lamports
-      })
-    );
-    transaction.feePayer = new PublicKey(address);
+    });
+    const transaction = new Transaction().add(pg);
+    transaction.feePayer = from;
     const {blockhash} = await this.connection.getRecentBlockhash();
     transaction.recentBlockhash = blockhash;
     try {
-      const signedTx = await window.solana!.signTransaction(transaction);
-      const signature = await this.connection.sendRawTransaction(signedTx.serialize());
-      await this.connection.confirmTransaction(signature);
-      return signature;
+        const provider = this.modal.getProvider('solana') as any;
+        const provider2 = this.modal.getWalletProvider() as any;
+        debugger
+        try {
+
+            const signedTx = await provider2.signTransaction(transaction);
+            const signature = await this.connection.sendRawTransaction(signedTx.serialize());
+            await this.connection.confirmTransaction(signature);
+            return signature;
+        } catch (error) {
+            console.error('Error signing transaction:', error);
+            throw new Error("Error signing transaction.");
+        }
     } catch (error: any) {
       throw new Error(`Error sending transaction: ${error.message}`);
     }
