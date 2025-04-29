@@ -1,5 +1,5 @@
 // src/app/wallet/wallet.component.ts
-import {Component, OnInit, OnDestroy} from '@angular/core';
+import {Component, OnInit, OnDestroy, effect, computed, inject} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {HttpClient, HttpClientModule} from '@angular/common/http';
@@ -17,7 +17,14 @@ import { WalletConnectModalComponent} from "../walletconnect-modal/walletconnect
     styleUrls: ['./wallet.component.scss']
 })
 export class WalletComponent implements OnInit {
-    walletAddress: PublicKey | null = null;
+    private http = inject(HttpClient);
+    private walletService = inject(SolanaWalletService);
+
+    walletAddress = this.walletService.address;
+    walletAddresses = computed(() => {
+        return Array.from(this.walletService.allAddresses());
+    });
+
     private walletAddressSub?: Subscription;
     recipientAddress: string = '';
     sendAmount: string = '';
@@ -34,14 +41,8 @@ export class WalletComponent implements OnInit {
     isModalOpen: boolean = false;
     isWalletConnectModalOpen: boolean = false;
 
-    constructor(protected walletService: SolanaWalletService, private http: HttpClient) {
-    }
-
     ngOnInit(): void {
-        this.walletAddressSub = this.walletService.$walletAddress.subscribe(address => {
-            this.walletAddress = address;
-            console.log('Wallet address updated:', address?.toString());
-        });
+
     }
 
     openWalletConnectModal() {
@@ -56,7 +57,7 @@ export class WalletComponent implements OnInit {
 
     async connectWallet() {
         try {
-            await this.walletService.connectWallet();
+            await this.walletService.connectWalletViaAppKit();
             this.logMessages.push("Wallet connected successfully.");
             await this.refreshBalances();
         } catch (error: any) {
@@ -97,9 +98,10 @@ export class WalletComponent implements OnInit {
     }
 
     async refreshBalances() {
-        if (this.walletService.walletPublicKey) {
+        const address = this.walletService.address();
+        if (address) {
             try {
-                this.walletBalance = await this.walletService.getSOLBalance(this.walletService.walletPublicKey);
+                this.walletBalance = await this.walletService.getSOLBalance(new PublicKey(address));
             } catch (error: any) {
                 this.logMessages.push("Error fetching SOL balance: " + error.message);
             }
@@ -109,7 +111,7 @@ export class WalletComponent implements OnInit {
                 this.logMessages.push("Error fetching SOL price: " + error.message);
             }
             try {
-                const tokenBalancesData = await this.walletService.getTokenBalances(this.walletService.walletPublicKey);
+                const tokenBalancesData = await this.walletService.getTokenBalances(new PublicKey(address));
                 this.tokenBalances = tokenBalancesData;
                 // For tokens with a valid CoinGecko ID, fetch their current prices.
                 const ids = this.tokenBalances

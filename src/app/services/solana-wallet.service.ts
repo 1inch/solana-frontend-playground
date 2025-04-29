@@ -1,10 +1,26 @@
-import {Injectable} from '@angular/core';
+import {Injectable, signal} from '@angular/core';
 import {Connection, LAMPORTS_PER_SOL, PublicKey, Signer, SystemProgram, Transaction} from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
 import {TokenInfo, TokenListProvider} from '@solana/spl-token-registry';
 import {HttpClient} from '@angular/common/http';
 import {BehaviorSubject, firstValueFrom, Observable} from 'rxjs';
 import SignClient from '@walletconnect/sign-client';
+import { createAppKit } from '@reown/appkit'
+import { Ethers5Adapter } from '@reown/appkit-adapter-ethers5'
+import { mainnet, arbitrum } from '@reown/appkit/networks'
+import {SolanaAdapter} from "@reown/appkit-adapter-solana";
+import { solana } from '@reown/appkit/networks'
+import {createAppKitWalletButton} from "@reown/appkit-wallet-button";
+
+const projectId = 'YOUR_PROJECT_ID'; // Replace with your actual project ID
+
+const metadata = {
+    name: 'My Website',
+    description: 'My Website description',
+    url: 'https://mywebsite.com',
+    icons: ['https://avatars.mywebsite.com/']
+}
+
 
 export interface TokenBalance {
     mint: string;
@@ -27,14 +43,46 @@ function base64ToUint8Array(base64:any): Uint8Array {
     return bytes;
 }
 
+const solanaWeb3JsAdapter = new SolanaAdapter({
+    wallets: []
+})
+
 @Injectable({
     providedIn: 'root'
 })
 export class SolanaWalletService {
     private readonly connection: Connection;
     private walletAddressSubject: BehaviorSubject<PublicKey | null> = new BehaviorSubject<PublicKey | null>(null);
-    $walletAddress: Observable<PublicKey | null> = this.walletAddressSubject.asObservable();
-    public walletPublicKey: PublicKey | null = null;
+    address = signal<string | null>(null);
+
+    allAddresses = signal<Set<string>>(new Set());
+
+    solanaAddress = signal<string | null>(null);
+    eip155Address = signal<string | null>(null);
+
+    modal = createAppKit({
+        adapters: [new Ethers5Adapter(), solanaWeb3JsAdapter],
+        metadata: metadata,
+        networks: [mainnet, solana],
+        projectId,
+        features: {
+            allWallets: false,
+            onramp: false,
+            history: false,
+            receive: false,
+            send: false,
+            emailShowWallets: false,
+            email: false,
+            swaps: false,
+            socials: false,
+            analytics: false // Optional - defaults to your Cloud configuration
+        },
+        allWallets: "ONLY_MOBILE",
+    })
+
+    button = createAppKitWalletButton();
+
+
 
     // SPL Token Program ID (constant for Solana)
     private readonly TOKEN_PROGRAM_ID = new PublicKey(
@@ -45,6 +93,35 @@ export class SolanaWalletService {
 
     constructor(private http: HttpClient) {
         this.connection = new Connection('https://solana-rpc.publicnode.com', 'confirmed');
+
+        this.modal.subscribeAccount((acc) => {
+            console.log(acc.allAccounts.length);
+            if (acc.allAccounts.length > 0) {
+                const addresses = new Set<string>();
+
+                const solanaAddress = this.modal.getAddressByChainNamespace('solana');
+
+                const eip155Address = this.modal.getAddressByChainNamespace('eip155');
+
+                if (solanaAddress) {
+                    addresses.add(solanaAddress);
+                    this.solanaAddress.set(solanaAddress);
+                }
+
+                if (eip155Address) {
+                    addresses.add(eip155Address);
+                    this.eip155Address.set(eip155Address);
+                }
+
+                this.allAddresses.set(addresses);
+
+                const p = this.modal.getProvider('eip155');
+                console.log('Provider:', p);
+            }
+            this.address.set(acc?.address ?? null);
+        })
+
+        console.log(this.modal)
     }
 
     private walletConnectSession: any = null;
@@ -53,7 +130,7 @@ export class SolanaWalletService {
     updateWalletAddressFromWalletConnect(walletAddress: string): void {
         try {
             const publicKey = new PublicKey(walletAddress);
-            this.walletPublicKey = publicKey;
+            this.address.set(walletAddress);
             this.walletAddressSubject.next(publicKey);
             console.log('Wallet address updated from WalletConnect:', publicKey.toBase58());
         } catch (error) {
@@ -61,24 +138,23 @@ export class SolanaWalletService {
         }
     }
 
-    async connectWallet(): Promise<void> {
-        if (window.solana && window.solana.isPhantom) {
-            const resp = await window.solana.connect();
-            this.walletPublicKey = resp.publicKey;
-            this.walletAddressSubject.next(resp.publicKey);
+
+    async connectWalletViaAppKit(): Promise<void> {
+        if (this.button.isReady()) {
+            await this.button.connect('walletConnect')
         } else {
-            throw new Error('Phantom wallet not available.');
+            this.button.subscribeIsReady(async (isReady) => {
+                if (isReady) {
+                    await this.button.connect('walletConnect')
+                }
+            })
         }
     }
 
     async disconnectWallet(): Promise<void> {
-        if (window.solana && window.solana.isPhantom) {
-            if (typeof window.solana.disconnect === 'function') {
-                await window.solana.disconnect();
-            }
-            this.walletPublicKey = null;
-            this.walletAddressSubject.next(null);
-        }
+        await this.modal.disconnect();
+        this.address.set(null);
+        this.allAddresses.set(new Set());
     }
 
     async getSOLBalance(publicKey: PublicKey): Promise<number> {
@@ -175,9 +251,12 @@ export class SolanaWalletService {
 
 
   async sendSOLANA(recipientAddress: string, amount: string): Promise<string> {
-    if (!this.walletPublicKey) {
+      const address = this.solanaAddress();
+    if (!address) {
       throw new Error("Wallet is not connected. Please connect your wallet first.");
     }
+
+
     let recipientPublicKey: PublicKey;
     try {
       recipientPublicKey = new PublicKey(recipientAddress);
@@ -189,30 +268,41 @@ export class SolanaWalletService {
       throw new Error("Invalid amount.");
     }
     const lamports = parsedAmount * LAMPORTS_PER_SOL;
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: this.walletPublicKey,
+    const from = new PublicKey(address);
+    const pg = SystemProgram.transfer({
+        fromPubkey: from,
         toPubkey: recipientPublicKey,
         lamports: lamports
-      })
-    );
-    transaction.feePayer = this.walletPublicKey;
+    });
+    const transaction = new Transaction().add(pg);
+    transaction.feePayer = from;
     const {blockhash} = await this.connection.getRecentBlockhash();
     transaction.recentBlockhash = blockhash;
     try {
-      const signedTx = await window.solana!.signTransaction(transaction);
-      const signature = await this.connection.sendRawTransaction(signedTx.serialize());
-      await this.connection.confirmTransaction(signature);
-      return signature;
+        const provider = this.modal.getProvider('solana') as any;
+        const provider2 = this.modal.getWalletProvider() as any;
+        debugger
+        try {
+
+            const signedTx = await provider2.signTransaction(transaction);
+            const signature = await this.connection.sendRawTransaction(signedTx.serialize());
+            await this.connection.confirmTransaction(signature);
+            return signature;
+        } catch (error) {
+            console.error('Error signing transaction:', error);
+            throw new Error("Error signing transaction.");
+        }
     } catch (error: any) {
       throw new Error(`Error sending transaction: ${error.message}`);
     }
   }
 
     async sendUSDC(destinationAddress: string, amount: string, mintAddress: string): Promise<string> {
-        if (!this.walletPublicKey) {
+        const address = this.address();
+        if (!address) {
             throw new Error("Wallet is not connected. Please connect your wallet first.");
         }
+
         let destinationPublicKey: PublicKey;
         try {
             destinationPublicKey = new PublicKey(destinationAddress);
@@ -231,7 +321,7 @@ export class SolanaWalletService {
                 this.connection,
                 window.solana! as unknown as Signer,
                 mint,
-                this.walletPublicKey
+                new PublicKey(address)
             );
         } catch (error: any) {
             throw new Error(`Error getting source token account: ${error.message}`);
@@ -259,10 +349,10 @@ export class SolanaWalletService {
         tx.add(splToken.createTransferInstruction(
             sourceAccount.address,
             destinationAccount.address,
-            this.walletPublicKey,
+            new PublicKey(address),
             transferAmount * Math.pow(10, decimals)
         ));
-        tx.feePayer = this.walletPublicKey;
+        tx.feePayer = new PublicKey(address)
         const {blockhash} = await this.connection.getRecentBlockhash();
         tx.recentBlockhash = blockhash;
         try {

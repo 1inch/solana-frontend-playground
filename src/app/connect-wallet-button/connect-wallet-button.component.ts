@@ -14,7 +14,8 @@ export class ConnectWalletButtonComponent {
 
   async connectWallet() {
     try {
-      await this.walletService.connectWallet();
+      await this.walletService.connectWalletViaAppKit();
+      // await this.walletService.connectWallet();
       this.walletConnected.emit();
     } catch (error: any) {
       console.error('Error connecting wallet:', error.message);
